@@ -1,6 +1,5 @@
 module View exposing (view)
 
-import Dom
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -8,26 +7,32 @@ import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
 import Types exposing (..)
+import Selector exposing (..)
 
 
 view : Model -> Html Msg
 view model =
+    selector model |> view_
+
+
+view_ : ViewModel -> Html Msg
+view_ ({ model } as viewModel) =
     div
         [ class "todomvc-wrapper"
         , style [ ( "visibility", "hidden" ) ]
         ]
         [ section
             [ class "todoapp" ]
-            [ lazy viewInput model.field
-            , lazy2 viewEntries model.visibility model.entries
-            , lazy2 viewControls model.visibility model.entries
+            [ lazy viewInput viewModel
+            , lazy viewEntries viewModel
+            , lazy viewControls viewModel
             ]
         , infoFooter
         ]
 
 
-viewInput : String -> Html Msg
-viewInput task =
+viewInput : ViewModel -> Html Msg
+viewInput { model } =
     header
         [ class "header" ]
         [ h1 [] [ text "todos" ]
@@ -35,7 +40,7 @@ viewInput task =
             [ class "new-todo"
             , placeholder "What needs to be done?"
             , autofocus True
-            , value task
+            , value model.field
             , name "newTodo"
             , onInput UpdateField
             , onEnter Add
@@ -60,25 +65,11 @@ onEnter msg =
 -- VIEW ALL ENTRIES
 
 
-viewEntries : String -> List Entry -> Html Msg
-viewEntries visibility entries =
+viewEntries : ViewModel -> Html Msg
+viewEntries { model, visibleEntries, allCompleted } =
     let
-        isVisible todo =
-            case visibility of
-                "Completed" ->
-                    todo.completed
-
-                "Active" ->
-                    not todo.completed
-
-                _ ->
-                    True
-
-        allCompleted =
-            List.all .completed entries
-
         cssVisibility =
-            if List.isEmpty entries then
+            if List.isEmpty model.entries then
                 "hidden"
             else
                 "visible"
@@ -99,7 +90,7 @@ viewEntries visibility entries =
                 [ for "toggle-all" ]
                 [ text "Mark all as complete" ]
             , Keyed.ul [ class "todo-list" ] <|
-                List.map viewKeyedEntry (List.filter isVisible entries)
+                List.map viewKeyedEntry visibleEntries
             ]
 
 
@@ -151,27 +142,20 @@ viewEntry todo =
 -- VIEW CONTROLS AND FOOTER
 
 
-viewControls : String -> List Entry -> Html Msg
-viewControls visibility entries =
-    let
-        entriesCompleted =
-            List.length (List.filter .completed entries)
-
-        entriesLeft =
-            List.length entries - entriesCompleted
-    in
-        footer
-            [ class "footer"
-            , hidden (List.isEmpty entries)
-            ]
-            [ lazy viewControlsCount entriesLeft
-            , lazy viewControlsFilters visibility
-            , lazy viewControlsClear entriesCompleted
-            ]
+viewControls : ViewModel -> Html Msg
+viewControls ({ model, entriesCompleted } as viewModel) =
+    footer
+        [ class "footer"
+        , hidden (List.isEmpty model.entries)
+        ]
+        [ lazy viewControlsCount viewModel
+        , lazy viewControlsFilters viewModel
+        , lazy viewControlsClear viewModel
+        ]
 
 
-viewControlsCount : Int -> Html Msg
-viewControlsCount entriesLeft =
+viewControlsCount : ViewModel -> Html Msg
+viewControlsCount { entriesLeft } =
     let
         item_ =
             if entriesLeft == 1 then
@@ -186,15 +170,15 @@ viewControlsCount entriesLeft =
             ]
 
 
-viewControlsFilters : String -> Html Msg
-viewControlsFilters visibility =
+viewControlsFilters : ViewModel -> Html Msg
+viewControlsFilters { model } =
     ul
         [ class "filters" ]
-        [ visibilitySwap "#/" "All" visibility
+        [ visibilitySwap "#/" "All" model.visibility
         , text " "
-        , visibilitySwap "#/active" "Active" visibility
+        , visibilitySwap "#/active" "Active" model.visibility
         , text " "
-        , visibilitySwap "#/completed" "Completed" visibility
+        , visibilitySwap "#/completed" "Completed" model.visibility
         ]
 
 
@@ -207,8 +191,8 @@ visibilitySwap uri visibility actualVisibility =
         ]
 
 
-viewControlsClear : Int -> Html Msg
-viewControlsClear entriesCompleted =
+viewControlsClear : ViewModel -> Html Msg
+viewControlsClear { entriesCompleted } =
     button
         [ class "clear-completed"
         , hidden (entriesCompleted == 0)

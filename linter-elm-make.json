@@ -1,0 +1,6 @@
+{
+  "mainPaths": [
+    "src/Main.elm",
+    "tests/Suite.elm"
+  ]
+}
